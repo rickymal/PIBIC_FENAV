@@ -63,12 +63,12 @@ from pandas import ExcelWriter
 idx = pd.IndexSlice
 
 #retira o limite de leitura das colunas
-from IPython.display import display
-pd.options.display.max_rows = None
+#from IPython.display import display
+#pd.options.display.max_rows = None
 
 #eliminta os avisos de depreciação e de falha na construção de redes neurais
-import warnings
-warnings.filterwarnings('ignore')
+#import warnings
+#warnings.filterwarnings('ignore')
 
 
 # ## Coleta de dados
@@ -285,6 +285,16 @@ result.to_excel(writer,'Dados coletados')
 result_multindex = result.copy()
 
 
+
+
+
+
+
+result_multindex = result_multindex.iloc[:,:5]
+
+
+
+
 # In[172]:
 
 
@@ -479,6 +489,13 @@ def relacionarDados(args,multiIndexKey = ' de ', relashionshipKey = '<>',
         #saida[relação] = psy.pearsonr(valor1.dropna().values,valor2.dropna().values)
         valorMinimo = pd.DataFrame([valor1,valor2]).T.dropna()
         #Aplicação da correlação de Pearson nas duas variaveis atuais 'n' da permutação
+
+        print(len(valorMinimo))
+
+        if len(valorMinimo) == 0:
+            print('valor minimo encontrado.')
+            continue
+
         saida[relação] = psy.pearsonr(valorMinimo.iloc[:,0].values,valorMinimo.iloc[:,1].values)
         intern_logList.append(saida[relação])
         logList.append(tuple(intern_logList))
@@ -1274,6 +1291,10 @@ def createMLP_TEMP(estação = 'cota de três marias',withPLots = True,):
     field = dict()
     
     #Função procurarMLP Acoplada para parâmetro de estação -> procurarBMLP
+    response = procurarBMLP(estação = 'cota de três marias')
+
+    if response is None:
+        return None
     v1,v2,rede_neural,fields = procurarBMLP(estação='cota de três marias')
 
     ttbo = fields['tabelaBase']
@@ -1345,6 +1366,7 @@ r1 = createMLP_TEMP(estação='cota de três marias',withPLots = True)
 
 
 #diferentes maneiras de detectar o índice do valor mínimo
+'''
 saida_valida = vv2
 list(saida_valida).index(min(saida_valida))
 ###
@@ -1354,6 +1376,10 @@ min_index
 ###
 import numpy as np
 np.argmin(saida_valida)
+
+'''
+
+
 ###
 
 
