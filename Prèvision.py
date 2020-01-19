@@ -835,6 +835,7 @@ As entradas e as saidas em formato de séries temporais para a plotagem
 
 
 '''
+
 #Entradas : São as entradas da rede neural, no nosso caso, os dados Enos.
 def getBMLP(entrada_calibra,entrada_valida,saida_calibra,saida_valida,logfilename='Log de redes neurais.txt',datafilename='redesTreinadas.sav',
        num_redes=5,num_max_camadas_intermediarias=3,num_max_neuronios=15,forceCreateNewNet=True, neural_net_structured = None,):
@@ -859,7 +860,8 @@ def getBMLP(entrada_calibra,entrada_valida,saida_calibra,saida_valida,logfilenam
         with open(logfile,'w') as file:
             file.write('Índice da rede - Rsme - NashSutcliffe\r\n')          
             for ind,rede in enumerate(minhasRedes):
-                rede.fit(entrada_calibra,saida_calibra)
+                print("Dimensão da rede :",entrada_calibra.shape,saida_calibra.shape)
+                rede.fit(entrada_calibra,saida_calibra) #tomar cuidado com o reshape, ele é utilizado pois se parte do princípio que o dado inserido é um vetor, sendo que o correto é uma matriz
              
                 previsões = rede.predict(entrada_valida)
                 reais = saida_valida
@@ -897,7 +899,7 @@ def getBMLP(entrada_calibra,entrada_valida,saida_calibra,saida_valida,logfilenam
     #input's
     print('indice máximo',indMax)
 
-    return minhasRedes[indMax]
+    return list_neural_nets[indMax]
 
 
 
@@ -913,10 +915,10 @@ def getModelByName(model_name = 'TEMP',output = None, inputs = None, name = "unk
     
     pass
 
-
-out_calibra, out_valida, in_calibra, in_valida = model_selection.train_test_split([output,inputs],)
-
-rede = getBMLP(in_calibra, in_valida, out_calibra, out_valida,logfilename = model_name + "_" + name)
+    
+    out_calibra, out_valida, in_calibra, in_valida = model_selection.train_test_split([output,inputs],)
+    
+    rede = getBMLP(in_calibra, in_valida, out_calibra, out_valida,logfilename = model_name + "_" + name)
 
 #Por enquanto irei desconsiderar o model_name, pois apenas quero facilitar a análise
 
@@ -1122,7 +1124,7 @@ def generateNeuralNetSystem(IDstation = [0,1,2,3,4,5],Tentativas = 3, set_graphi
 
 
 
-from itertools import permutations
+from itertools import combinations
 
 
 
@@ -1134,39 +1136,93 @@ print("Fim da execução da aplicação")
 
 
 
+# %%
+
+
+
+
 dados_cota = result.loc[:,"Cota"]
 dados_enos = result.loc[:,"Eno"]
 
 
-rr = list(map(lambda x : list(permutations(range(1,7),x)),range(1,3)))
 
 # Esta função trará a combinção de entradas e saidas dos dados, ela não retorna nenhuma defasagem entre as variáveis, tendo então que ser feito por fora do iterador
-def getIOCombination(set_data_output = dados_cota, set_data_input = dados_enos,n_iteration = [[1],[2],[3],[4],[5],[6],[1,2,3,]], defasation = [0], diferentiation = [False]):
+# Será talvez necessário criar uma função que selecione o método de entrada e saída de daods com base nos dados (Com base nas correlações lineares ou não)
+def getIOCombination(set_data_output, set_data_input,n_iteration = [[1],[2],[3],[4],[5],[6],[1,2,3,]], defasations = [0],):
     #print("Entrando")
-    realloc_iteration = [np.array(n_iter) - 1 for n_iter in n_iteration]
+    realloc_iteration = n_iteration
+    data_info = dict()
+    get_information = False
+    # index_acess realloc_iteration
     for name_serie, serie in set_data_output.items():
-        for index_acess in realloc_iteration:
-            #print(f"Explicando o package, de tipo {type(index_acess)} e de informação: {index_acess}. ")
-            #index_acess = np.array(index_acess)
-            #print("Loopando", type(index_acess))
-            dataframe = pd.concat([serie,set_data_input.iloc[:,index_acess]], axis = 1, sort = False).dropna()
-            #print("Loopando", index_acess)
-            saida = dataframe.iloc[:,[0]]
-            entrada = dataframe.iloc[:,1:]
-            #print('len',len(entrada))
-            yield entrada,saida
-    yield None
-
-for x in getIOCombination():
-    print(f"entrada : {x[0].columns} '\t' :::::'\t' {x[1].columns}")
-
-
-
-
-
-output = None
-inputs = None
-out_calibra, out_valida, in_calibra, in_valida = model_selection.train_test_split([output,inputs],)
-rede = getBMLP(in_calibra, in_valida, out_calibra, out_valida,logfilename = "sem nome.log")
+        for defasation in defasations:
+            for index_acess in realloc_iteration: #Para cada defasagem
+                dataframe = pd.concat([serie,set_data_input.iloc[:,index_acess]], axis = 1, sort = False).dropna()
+                dframe_internal = dataframe.copy()
+                #print("Loopando", index_acess)
+                dframe_internal.iloc[:,1:] = dframe_internal.iloc[:,1:].copy().shift(defasation)
+                global debug
+                debug = dframe_internal
+                dframe_internal = dframe_internal.dropna().copy()
+                saida = dframe_internal.iloc[:,0] # vericicar com calma se retorno um dataframe (com chaves envolvendo o zero) ou uma série (sem as chaves)
+                entrada = dframe_internal.iloc[:,1:]
+                #print('len',len(entrada))
+                if get_information:
+                    yield entrada,saida,data_info
+                else:
+                    yield entrada,saida
 
 
+#preparando as combinações
+rr = (combinations([0,1,2,3,4,5,],x) for x in [1,2,3,4,5,6]) #tentarei todas as combinações de estações dos dados extremos
+ll = list()
+for a in rr:
+    for b in a:
+        ll.append(list(b))
+
+
+
+responses = list()
+for x in getIOCombination(dados_cota, dados_enos, n_iteration = [[0],[1],[2],[3],[4],[5],], defasations = [0,1,2,3,4,5,6,7,8,9,10,11,12]):
+    print("OI")
+
+    inputs = x[0].values
+    output = x[1].values
+    
+    print("Realizando mapeando em tipos :",type(inputs),type(output))
+    
+    out_calibra, out_valida, in_calibra, in_valida = model_selection.train_test_split(output,inputs,test_size = 24, shuffle = False,)
+    rede,rsme,r2 = getBMLP(in_calibra, in_valida, out_calibra, out_valida,logfilename = "sem nome.log")
+    
+    print("a21", type(in_valida))
+    previsto = rede.predict(in_valida)
+    esperado = out_valida
+    
+    erro_r2 = r2_score(esperado, previsto)
+    erro_rsme = mean_squared_error(esperado, previsto)
+    erro_rsme = sqrt(erro_rsme)
+    
+    response = {
+        'station' : x[1].name,
+        'extreme-data' : x[0].columns,
+        'error' : (r2,rsme),
+        'neural-network' : rede,
+        'data' : {
+            'validation' : (out_valida,in_valida),
+            'all' : (x[0],x[1])
+            },
+        }
+    
+    print(response)
+    
+    
+    responses.append(response)
+    
+        
+
+    print("Os resultados obtidos foram: r2",erro_r2,"rsm",erro_rsme)  
+
+    
+for x in range(0,100):
+    ms = f"com o erro {responses[x]['error']} para a estação de {responses[x]['station']} com {responses[x]['extreme-data']}"
+    print(ms)
